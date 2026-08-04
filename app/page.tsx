@@ -8,6 +8,98 @@ interface Transaction {
   transactionType: TransactionType;
   status: TransactionStatus;
   date: string;
+  category: string;
+}
+
+interface CategoryRule {
+  keywords: string[];
+  category: string;
+  priority: number;
+}
+
+interface CategoryPrediction {
+  category: string | null;
+  reason: "matched" | "no_match" | "ambiguous";
+}
+
+const categoryRules: CategoryRule[] = [
+  {
+    keywords: ["bershka", "zara", "koton", "elbise", "pantolon"],
+    category: "Giyim",
+    priority: 3,
+  },
+  {
+    keywords: ["market", "migros", "a101", "bim", "şok"],
+    category: "Market",
+    priority: 2,
+  },
+  {
+    keywords: ["kyk", "yurt", "kira"],
+    category: "Barınma",
+    priority: 3,
+  },
+];
+
+function predictCategory(description: string): CategoryPrediction {
+  const normalizedDescription = normalizeText(description);
+
+  const matchedRules = categoryRules.filter((rule) =>
+    rule.keywords.some((keyword) =>
+      normalizedDescription.includes(normalizeText(keyword)),
+    ),
+  );
+
+  if (matchedRules.length === 0) {
+    return {
+      category: null,
+      reason: "no_match",
+    };
+  }
+
+  const bestRule = matchedRules.reduce((bestRule, currentRule) => {
+    if (currentRule.priority > bestRule.priority) {
+      return currentRule;
+    }
+
+    if (currentRule.priority < bestRule.priority) {
+      return bestRule;
+    }
+
+    const currentMatchCount = countKeywordMatches(
+      description,
+      currentRule,
+    );
+
+    const bestMatchCount = countKeywordMatches(
+      description,
+      bestRule,
+    );
+
+    return currentMatchCount > bestMatchCount
+      ? currentRule
+      : bestRule;
+  });
+
+  const bestMatchCount = countKeywordMatches(description, bestRule);
+
+  const hasAmbiguousMatch = matchedRules.some(
+    (rule) =>
+      rule.category !== bestRule.category &&
+      rule.priority === bestRule.priority &&
+      countKeywordMatches(description, rule) === bestMatchCount,
+  );
+
+  if (hasAmbiguousMatch) {
+    return {
+      category: null,
+      reason: "ambiguous",
+    };
+  }
+
+  return {
+    category: bestRule.category,
+    reason: "matched",
+  };
 }
 
 function formatMoney(amount: number): string {
@@ -16,6 +108,21 @@ function formatMoney(amount: number): string {
 
 function formatDate(date: string): string {
   return date.split("-").reverse().join(".");
+}
+
+function normalizeText(text: string): string {
+  return text.toLocaleLowerCase("tr-TR");
+}
+
+function countKeywordMatches(
+  description: string,
+  rule: CategoryRule,
+): number {
+  const normalizedDescription = normalizeText(description);
+
+  return rule.keywords.filter((keyword) =>
+    normalizedDescription.includes(normalizeText(keyword)),
+  ).length;
 }
 
 export default function Home() {
@@ -27,6 +134,7 @@ export default function Home() {
       transactionType: "income",
       status: "completed",
       date: "2026-07-20",
+      category: "Harçlık",
     },
     {
       id: 2,
@@ -35,6 +143,7 @@ export default function Home() {
       transactionType: "expense",
       status: "completed",
       date: "2026-07-29",
+      category: predictCategory("Bershka kot").category ?? "Diğer",
     },
     {
       id: 3,
@@ -43,6 +152,7 @@ export default function Home() {
       transactionType: "expense",
       status: "completed",
       date: "2026-07-30",
+      category: predictCategory("Market alışverişi").category ?? "Diğer",
     },
     {
       id: 4,
@@ -51,6 +161,7 @@ export default function Home() {
       transactionType: "expense",
       status: "planned",
       date: "2026-09-20",
+      category: predictCategory("KYK yurt").category ?? "Diğer",
     },
   ];
 
@@ -77,6 +188,14 @@ export default function Home() {
   );
 
   const totalBalance = totalIncome - totalExpense;
+
+  const matchedTest = predictCategory("Bershka pantolon");
+  const noMatchTest = predictCategory("Sinema bileti");
+  const ambiguousTest = predictCategory("Zara kira");
+
+  console.log("Eşleşen test:", matchedTest);
+  console.log("Eşleşmeyen test:", noMatchTest);
+  console.log("Kararsız test:", ambiguousTest);
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -127,6 +246,10 @@ export default function Home() {
 
               <p className="mt-1 text-sm text-slate-500">
                 {formatDate(transaction.date)}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {transaction.category}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
