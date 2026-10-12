@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { updateDuePlannedTransactions } from "@/lib/transactions";
 
 type TransactionType = "income" | "expense";
 type TransactionStatus = "completed" | "planned";
@@ -24,6 +25,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadTransactions() {
+      await updateDuePlannedTransactions();
+      
       const { data, error } = await supabase
         .from("transactions")
         .select(
