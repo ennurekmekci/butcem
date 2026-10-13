@@ -26,7 +26,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadTransactions() {
       await updateDuePlannedTransactions();
-      
+
       const { data, error } = await supabase
         .from("transactions")
         .select(
@@ -123,7 +123,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <>
       <h1 className="text-3xl font-bold text-slate-900">
         Ana Sayfa
       </h1>
@@ -163,6 +163,6 @@ export default function DashboardPage() {
           </p>
         </div>
       </section>
-    </main>
+    </>
   );
 }

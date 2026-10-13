@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const router = useRouter();
+
+  useEffect(() => {
+    async function checkUser() {
+      const { data } = await supabase.auth.getUser();
+
+      if (data.user) {
+        router.push("/dashboard");
+      }
+    }
+
+    checkUser();
+  }, [router]);
 
   async function handleSignUp() {
     const { data, error } = await supabase.auth.signUp({
@@ -23,10 +38,14 @@ export default function Home() {
       password: password,
     });
 
+    if (error) {
+      console.log("Giriş hatası:", error);
+      return;
+    }
+
     console.log("Giriş yapan kullanıcı:", data.user?.email);
-    console.log("Kullanıcı ID:", data.user?.id);
-    console.log("Session oluştu mu:", data.session !== null);
-    console.log("Sign in error:", error);
+
+    router.push("/dashboard");
   }
 
   async function handleForgotPassword() {
@@ -50,15 +69,6 @@ export default function Home() {
     }
 
     console.log("Şifre sıfırlama maili gönderildi.");
-  }
-
-  async function handleSignOut() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.log("Çıkış hatası:", error);
-      return;
-    }
   }
 
   return (
@@ -120,14 +130,6 @@ export default function Home() {
           className="mt-2 w-full text-sm font-medium text-slate-600"
         >
           Şifremi Unuttum
-        </button>
-
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="mt-2 w-full rounded-lg border border-red-300 px-4 py-2 font-medium text-red-600"
-        >
-          Çıkış Yap
         </button>
 
       </div>

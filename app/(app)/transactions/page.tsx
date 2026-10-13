@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { updateDuePlannedTransactions } from "@/lib/transactions";
 
 type TransactionType = "income" | "expense";
 type TransactionStatus = "completed" | "planned";
@@ -212,6 +213,8 @@ export default function TransactionsPage() {
     }
 
     async function loadTransactions() {
+        await updateDuePlannedTransactions();
+
         const { data, error } = await supabase
             .from("transactions")
             .select(
@@ -225,54 +228,7 @@ export default function TransactionsPage() {
             return;
         }
 
-        const today = getLocalDateString();
-
-        const duePlannedTransactions = data.filter(
-            (transaction) =>
-                transaction.status === "planned" &&
-                transaction.date <= today,
-        );
-
-        for (const transaction of duePlannedTransactions) {
-            const { error: updateError } = await supabase
-                .from("transactions")
-                .update({
-                    status: "completed",
-                })
-                .eq("id", transaction.id);
-
-            if (updateError) {
-                console.log(
-                    "Planlanan işlem tamamlanamadı:",
-                    updateError,
-                );
-            }
-        }
-
-        let finalData = data;
-
-        if (duePlannedTransactions.length > 0) {
-            const { data: updatedData, error: updatedDataError } =
-                await supabase
-                    .from("transactions")
-                    .select(
-                        "id, description, amount, transaction_type, status, date, category, created_at, updated_at",
-                    )
-                    .order("updated_at", { ascending: false })
-                    .order("created_at", { ascending: false });
-
-            if (updatedDataError) {
-                console.log(
-                    "Güncel işlemler getirilemedi:",
-                    updatedDataError,
-                );
-                return;
-            }
-
-            finalData = updatedData;
-        }
-
-        const formattedTransactions = finalData.map((transaction) => ({
+        const formattedTransactions = data.map((transaction) => ({
             id: transaction.id,
             description: transaction.description,
             amount: transaction.amount,
@@ -526,7 +482,7 @@ export default function TransactionsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-50 p-8">
+        <>
             <h1 className="text-3xl font-bold text-slate-900">
                 İşlemler
             </h1>
@@ -727,6 +683,6 @@ export default function TransactionsPage() {
                     ))}
                 </div>
             </section>
-        </main>
+        </>
     );
 }
