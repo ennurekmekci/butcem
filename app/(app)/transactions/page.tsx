@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { updateDuePlannedTransactions } from "@/lib/transactions";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type TransactionType = "income" | "expense";
 type TransactionStatus = "completed" | "planned";
@@ -199,6 +200,9 @@ export default function TransactionsPage() {
     const [editingTransactionId, setEditingTransactionId] =
         useState<number | null>(null);
 
+    const searchParams = useSearchParams();
+    const editId = searchParams.get("edit");
+
     async function loadUserCategoryRules() {
         const { data, error } = await supabase
             .from("user_category_rules")
@@ -275,6 +279,32 @@ export default function TransactionsPage() {
         }
     }, [newDate]);
 
+    useEffect(() => {
+        if (!editId || transactions.length === 0) {
+            return;
+        }
+
+        const transactionToEdit = transactions.find(
+            (transaction) => transaction.id === Number(editId),
+        );
+
+        if (!transactionToEdit) {
+            return;
+        }
+
+        setEditingTransactionId(transactionToEdit.id);
+        setNewDescription(transactionToEdit.description);
+        setNewAmount(transactionToEdit.amount.toString());
+        setNewTransactionType(transactionToEdit.transactionType);
+        setNewStatus(transactionToEdit.status);
+        setNewDate(transactionToEdit.date);
+        setNewTransactionCategory(transactionToEdit.category);
+
+        setIsCategoryManuallyEdited(true);
+        setSaveCategoryRule(false);
+        setNewRuleKeyword("");
+    }, [editId, transactions]);
+
     async function handleAddTransaction() {
         const cleanedDescription = newDescription.trim();
         const amountNumber = Number(newAmount);
@@ -338,6 +368,8 @@ export default function TransactionsPage() {
             setIsCategoryManuallyEdited(false);
             setSaveCategoryRule(false);
             setNewRuleKeyword("");
+
+            router.replace("/transactions");
 
             return;
         }
@@ -479,6 +511,8 @@ export default function TransactionsPage() {
         setIsCategoryManuallyEdited(false);
         setSaveCategoryRule(false);
         setNewRuleKeyword("");
+
+        router.replace("/transactions");
     }
 
     return (
