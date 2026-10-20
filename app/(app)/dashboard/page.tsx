@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { updateDuePlannedTransactions } from "@/lib/transactions";
+import Link from "next/link";
 
 type TransactionType = "income" | "expense";
 type TransactionStatus = "completed" | "planned";
@@ -13,6 +14,14 @@ interface Transaction {
   transactionType: TransactionType;
   status: TransactionStatus;
   date: string;
+  category: string;
+}
+
+interface Budget {
+  id: number;
+  category: string;
+  amount: number;
+  month: string;
 }
 
 function formatMoney(amount: number): string {
@@ -22,6 +31,41 @@ function formatMoney(amount: number): string {
 export default function DashboardPage() {
   const [transactions, setTransactions] =
     useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+
+  async function loadBudgets() {
+    const { data, error } = await supabase
+      .from("budgets")
+      .select("id, category, amount, month")
+      .order("month", { ascending: false });
+
+    if (error) {
+      console.log("Bütçeler getirilemedi:", error);
+      return;
+    }
+
+    setBudgets(data);
+  }
+
+  function getBudgetSpent(budget: Budget): number {
+    return transactions
+      .filter(
+        (transaction) =>
+          transaction.transactionType === "expense" &&
+          transaction.status === "completed" &&
+          transaction.category
+            .trim()
+            .toLocaleLowerCase("tr-TR") ===
+          budget.category
+            .trim()
+            .toLocaleLowerCase("tr-TR") &&
+          transaction.date.slice(0, 7) === currentMonth
+      )
+      .reduce(
+        (total, transaction) => total + transaction.amount,
+        0
+      );
+  }
 
   useEffect(() => {
     async function loadTransactions() {
@@ -30,7 +74,7 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from("transactions")
         .select(
-          "id, amount, transaction_type, status, date",
+          "id, amount, transaction_type, status, date, category",
         );
 
       if (error) {
@@ -46,12 +90,14 @@ export default function DashboardPage() {
         status:
           transaction.status as TransactionStatus,
         date: transaction.date,
+        category: transaction.category,
       }));
 
       setTransactions(formattedTransactions);
     }
 
     loadTransactions();
+    loadBudgets();
   }, []);
 
   const incomeTransactions = transactions.filter(
@@ -80,7 +126,7 @@ export default function DashboardPage() {
 
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
+  const currentMonthNumber = currentDate.getMonth() + 1;
 
   const monthlyIncomeTransactions = transactions.filter(
     (transaction) => {
@@ -92,7 +138,7 @@ export default function DashboardPage() {
         transaction.transactionType === "income" &&
         transaction.status === "completed" &&
         year === currentYear &&
-        month === currentMonth
+        month === currentMonthNumber
       );
     },
   );
@@ -107,7 +153,7 @@ export default function DashboardPage() {
         transaction.transactionType === "expense" &&
         transaction.status === "completed" &&
         year === currentYear &&
-        month === currentMonth
+        month === currentMonthNumber
       );
     },
   );
@@ -120,6 +166,16 @@ export default function DashboardPage() {
   const monthlyExpense = monthlyExpenseTransactions.reduce(
     (total, transaction) => total + transaction.amount,
     0,
+  );
+
+  const today = new Date();
+
+  const currentMonth = `${today.getFullYear()}-${String(
+    today.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  const currentMonthBudgets = budgets.filter(
+    (budget) => budget.month.slice(0, 7) === currentMonth
   );
 
   return (
@@ -163,6 +219,95 @@ export default function DashboardPage() {
           </p>
         </div>
       </section>
+
+      {currentMonthBudgets.length > 0 && (
+        <section className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                Bu Ayın Bütçeleri
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Kategori bütçelerinin güncel kullanım durumu
+              </p>
+            </div>
+
+            <Link
+              href="/budgets"
+              className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            >
+              Bütçeleri Yönet
+            </Link>
+          </div>
+
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {currentMonthBudgets.map((budget) => {
+              const spent = getBudgetSpent(budget);
+              const actualPercentage =
+                (spent / budget.amount) * 100;
+
+              const barPercentage = Math.min(
+                actualPercentage,
+                100
+              );
+
+              return (
+                <div
+                  key={budget.id}
+                  className="rounded-xl bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-slate-900">
+                      {budget.category}
+                    </p>
+
+                    <p className="text-sm font-medium text-slate-600">
+                      {formatMoney(spent)} / {formatMoney(budget.amount)} TL
+                    </p>
+                  </div>
+
+                  <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200">
+                    <div
+                      className={`h-2.5 rounded-full ${spent > budget.amount
+                        ? "bg-red-500"
+                        : actualPercentage >= 80
+                          ? "bg-amber-500"
+                          : "bg-slate-900"
+                        }`}
+                      style={{
+                        width: `${barPercentage}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-sm text-slate-500">
+                      %{Math.round(actualPercentage)} kullanıldı
+                    </p>
+
+                    {spent > budget.amount ? (
+                      <p className="text-sm font-medium text-red-600">
+                        Bütçe aşıldı
+                      </p>
+                    ) : actualPercentage >= 80 ? (
+                      <p className="text-sm font-medium text-amber-600">
+                        Limite yaklaşıyor
+                      </p>
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        {formatMoney(budget.amount - spent)} TL kaldı
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section >
+      )
+      }
     </>
   );
 }
