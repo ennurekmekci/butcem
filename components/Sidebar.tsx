@@ -78,12 +78,23 @@ export default function Sidebar() {
         <Link
           href="/budgets"
           className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/budgets"
-              ? "bg-slate-200 font-medium text-slate-900"
-              : "text-slate-700 hover:bg-slate-100"
+            ? "bg-slate-200 font-medium text-slate-900"
+            : "text-slate-700 hover:bg-slate-100"
             }`}
         >
           <span>🎯</span>
           {!isCollapsed && <span>Bütçeler</span>}
+        </Link>
+
+        <Link
+          href="/goals"
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 ${pathname === "/goals"
+              ? "bg-slate-200 font-medium text-slate-900"
+              : "text-slate-700 hover:bg-slate-100"
+            }`}
+        >
+          <span>💰</span>
+          {!isCollapsed && <span>Tasarruf Hedefleri</span>}
         </Link>
 
         <Link

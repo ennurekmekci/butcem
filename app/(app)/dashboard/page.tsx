@@ -24,6 +24,14 @@ interface Budget {
   month: string;
 }
 
+interface SavingsGoal {
+  id: number;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: string | null;
+}
+
 function formatMoney(amount: number): string {
   return amount.toLocaleString("tr-TR");
 }
@@ -32,6 +40,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] =
     useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
 
   async function loadBudgets() {
     const { data, error } = await supabase
@@ -67,6 +76,30 @@ export default function DashboardPage() {
       );
   }
 
+  async function loadGoals() {
+    const { data, error } = await supabase
+      .from("savings_goals")
+      .select(
+        "id, name, target_amount, current_amount, target_date"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("Hedefler getirilemedi:", error);
+      return;
+    }
+
+    const formattedGoals = data.map((goal) => ({
+      id: goal.id,
+      name: goal.name,
+      targetAmount: goal.target_amount,
+      currentAmount: goal.current_amount,
+      targetDate: goal.target_date,
+    }));
+
+    setGoals(formattedGoals);
+  }
+
   useEffect(() => {
     async function loadTransactions() {
       await updateDuePlannedTransactions();
@@ -98,6 +131,7 @@ export default function DashboardPage() {
 
     loadTransactions();
     loadBudgets();
+    loadGoals();
   }, []);
 
   const incomeTransactions = transactions.filter(
@@ -220,94 +254,172 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {currentMonthBudgets.length > 0 && (
-        <section className="mt-8">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                Bu Ayın Bütçeleri
-              </h2>
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        {currentMonthBudgets.length > 0 && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Bu Ayın Bütçeleri
+                </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Kategori bütçelerinin güncel kullanım durumu
-              </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Kategori bütçelerinin güncel kullanım durumu
+                </p>
+              </div>
+
+              <Link
+                href="/budgets"
+                className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              >
+                Bütçeleri Yönet
+              </Link>
             </div>
 
-            <Link
-              href="/budgets"
-              className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
-            >
-              Bütçeleri Yönet
-            </Link>
-          </div>
+            <div className="space-y-4">
+              {currentMonthBudgets.map((budget) => {
+                const spent = getBudgetSpent(budget);
+                const actualPercentage =
+                  (spent / budget.amount) * 100;
 
+                const barPercentage = Math.min(
+                  actualPercentage,
+                  100
+                );
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {currentMonthBudgets.map((budget) => {
-              const spent = getBudgetSpent(budget);
-              const actualPercentage =
-                (spent / budget.amount) * 100;
-
-              const barPercentage = Math.min(
-                actualPercentage,
-                100
-              );
-
-              return (
-                <div
-                  key={budget.id}
-                  className="rounded-xl bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-slate-900">
-                      {budget.category}
-                    </p>
-
-                    <p className="text-sm font-medium text-slate-600">
-                      {formatMoney(spent)} / {formatMoney(budget.amount)} TL
-                    </p>
-                  </div>
-
-                  <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200">
-                    <div
-                      className={`h-2.5 rounded-full ${spent > budget.amount
-                        ? "bg-red-500"
-                        : actualPercentage >= 80
-                          ? "bg-amber-500"
-                          : "bg-slate-900"
-                        }`}
-                      style={{
-                        width: `${barPercentage}%`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-sm text-slate-500">
-                      %{Math.round(actualPercentage)} kullanıldı
-                    </p>
-
-                    {spent > budget.amount ? (
-                      <p className="text-sm font-medium text-red-600">
-                        Bütçe aşıldı
+                return (
+                  <div
+                    key={budget.id}
+                    className="rounded-xl bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-slate-900">
+                        {budget.category}
                       </p>
-                    ) : actualPercentage >= 80 ? (
-                      <p className="text-sm font-medium text-amber-600">
-                        Limite yaklaşıyor
+
+                      <p className="text-sm font-medium text-slate-600">
+                        {formatMoney(spent)} /{" "}
+                        {formatMoney(budget.amount)} TL
                       </p>
-                    ) : (
+                    </div>
+
+                    <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200">
+                      <div
+                        className={`h-2.5 rounded-full ${spent > budget.amount
+                            ? "bg-red-500"
+                            : actualPercentage >= 80
+                              ? "bg-amber-500"
+                              : "bg-slate-900"
+                          }`}
+                        style={{
+                          width: `${barPercentage}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between">
                       <p className="text-sm text-slate-500">
-                        {formatMoney(budget.amount - spent)} TL kaldı
+                        %{Math.round(actualPercentage)} kullanıldı
                       </p>
-                    )}
+
+                      {spent > budget.amount ? (
+                        <p className="text-sm font-medium text-red-600">
+                          Bütçe aşıldı
+                        </p>
+                      ) : actualPercentage >= 80 ? (
+                        <p className="text-sm font-medium text-amber-600">
+                          Limite yaklaşıyor
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-500">
+                          {formatMoney(budget.amount - spent)} TL kaldı
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section >
-      )
-      }
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {goals.length > 0 && (
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Tasarruf Hedefleri
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Birikim hedeflerinin güncel durumu
+                </p>
+              </div>
+
+              <Link
+                href="/goals"
+                className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              >
+                Hedefleri Yönet
+              </Link>
+            </div>
+
+            <div className="space-y-4">
+              {goals.map((goal) => {
+                const actualPercentage =
+                  (goal.currentAmount / goal.targetAmount) * 100;
+
+                const barPercentage = Math.min(
+                  actualPercentage,
+                  100
+                );
+
+                const remaining =
+                  goal.targetAmount - goal.currentAmount;
+
+                return (
+                  <div
+                    key={goal.id}
+                    className="rounded-xl bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-slate-900">
+                        {goal.name}
+                      </p>
+
+                      <p className="text-sm font-medium text-slate-600">
+                        {formatMoney(goal.currentAmount)} /{" "}
+                        {formatMoney(goal.targetAmount)} TL
+                      </p>
+                    </div>
+
+                    <div className="mt-4 h-2.5 w-full rounded-full bg-slate-200">
+                      <div
+                        className="h-2.5 rounded-full bg-slate-900"
+                        style={{
+                          width: `${barPercentage}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-sm text-slate-500">
+                        %{Math.round(actualPercentage)} tamamlandı
+                      </p>
+
+                      <p className="text-sm text-slate-500">
+                        {remaining > 0
+                          ? `${formatMoney(remaining)} TL kaldı`
+                          : "Hedef tamamlandı 🎉"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
     </>
   );
 }
